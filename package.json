@@ -1,0 +1,14 @@
+{
+  "name": "zyro-final",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": { "start": "node index.js" },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "discord-player": "^6.7.1",
+    "@discord-player/extractor": "^4.5.1",
+    "discord-voip": "latest",
+    "mediaplex": "latest",
+    "ffmpeg-static": "^5.2.0"
+  }
+}
