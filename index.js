@@ -3,7 +3,6 @@ const { Player } = require('discord-player');
 const { SoundCloudExtractor } = require('@discord-player/extractor');
 const ffmpeg = require('ffmpeg-static');
 
-// Esta línea es la que hace que Railway encuentre el audio
 process.env.FFMPEG_PATH = ffmpeg;
 
 const client = new Client({ 
@@ -15,14 +14,26 @@ const client = new Client({
     ] 
 });
 
-const player = new Player(client);
+const player = new Player(client, {
+    ytdlOptions: {
+        quality: 'lowestaudio',
+        highWaterMark: 1 << 25
+    }
+});
 
-// Registro de errores para que veas qué pasa en la consola de Railway
-player.events.on('error', (queue, error) => console.log(`❌ Error: ${error.message}`));
-player.events.on('playerError', (queue, error) => console.log(`🚫 Audio: ${error.message}`));
+// ESTO CORRIGE EL "OPERATION ABORTED"
+player.events.on('error', (queue, error) => {
+    console.log(`⚠️ Error de red: ${error.message}`);
+});
+
+player.events.on('playerError', (queue, error) => {
+    console.log(`🚫 Error de Audio: ${error.message}`);
+    if (error.message.includes('aborted')) {
+        console.log('🔄 Reintentando conexión...');
+    }
+});
 
 async function init() {
-    // Registramos el extractor de SoundCloud (el más estable)
     await player.extractors.register(SoundCloudExtractor, {});
     console.log('✅ Zyro: Listo en Railway. ¡A darle!');
 }
@@ -34,19 +45,24 @@ client.on('messageCreate', async (msg) => {
     const query = msg.content.split(' ').slice(1).join(' ');
     const channel = msg.member.voice.channel;
     
-    if (!channel) return msg.reply('¡Métete a un canal de voz primero!');
+    if (!channel) return msg.reply('¡Métete a un canal de voz!');
+
+    const waitMsg = await msg.reply(`⏳ Cargando audio...`);
 
     try {
         const { track } = await player.play(channel, query, {
             nodeOptions: { 
                 metadata: msg,
-                bufferingTimeout: 15000 
+                // Aumentamos los tiempos para que Railway no aborte
+                bufferingTimeout: 20000,
+                connectionTimeout: 30000,
+                leaveOnEnd: false
             }
         });
-        msg.reply(`🎶 Reproduciendo: **${track.title}**`);
+        waitMsg.edit(`🎶 Reproduciendo: **${track.title}**`);
     } catch (e) {
         console.log(e);
-        msg.reply(`❌ No pude cargar esa. Intenta con un link de SoundCloud.`);
+        waitMsg.edit(`❌ Discord abortó la conexión. Intenta de nuevo en 5 segundos.`);
     }
 });
 
