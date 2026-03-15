@@ -1,28 +1,56 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const { Player } = require('discord-player');
-const { YoutubeiExtractor } = require("discord-player-youtubei");
 const { SoundCloudExtractor, SpotifyExtractor } = require('@discord-player/extractor');
-const ffmpeg = require('ffmpeg-static');
-
-// Configuramos la ruta de audio para Railway
-process.env.FFMPEG_PATH = ffmpeg;
 
 const client = new Client({ 
-    intents: [
-        GatewayIntentBits.Guilds, 
-        GatewayIntentBits.GuildVoiceStates, 
-        GatewayIntentBits.GuildMessages, 
-        GatewayIntentBits.MessageContent
-    ] 
+    intents: [3276799] 
 });
 
-const player = new Player(client, {
-    ytdlOptions: {
-        quality: 'lowestaudio',
-        highWaterMark: 1 << 25 // Buffer de 33MB para evitar cortes
+const player = new Player(client);
+
+// CONFIGURACIÓN DEL NODO EXTERNO (El "Cerebro")
+async function boot() {
+    await player.extractors.loadDefault();
+    
+    // Aquí registramos el nodo externo para que Railway no tenga que procesar nada
+    // Este es un nodo público; si falla, solo hay que cambiar la host
+    await player.nodes.create({
+        host: 'lavalink.lexis.host', // Nodo público activo 2026
+        port: 443,
+        password: 'lexishostlavalink',
+        secure: true
+    });
+
+    console.log('🚀 Zyro: Conectado al cerebro externo (Lavalink).');
+}
+boot();
+
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.content.startsWith('!play')) return;
+
+    const query = message.content.slice(6).trim();
+    const channel = message.member.voice.channel;
+    
+    if (!channel) return message.reply('¡Entra a un canal de voz!');
+
+    const msg = await message.reply(`📡 Pidiendo audio al servidor externo...`);
+
+    try {
+        const { track } = await player.play(channel, query, {
+            nodeOptions: {
+                metadata: message,
+                leaveOnEnd: false,
+            }
+        });
+        msg.edit(`🎶 ¡Sonando!: **${track.title}**`);
+    } catch (e) {
+        console.error(e);
+        msg.edit(`❌ El servidor externo no respondió. Intenta de nuevo.`);
     }
 });
+
+client.login(process.env.TOKEN);
 
 // Manejo de errores para que el bot no se caiga
 player.events.on('error', (queue, error) => console.log(`⚠️ Error de red: ${error.message}`));
